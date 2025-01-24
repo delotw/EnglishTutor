@@ -3,3 +3,5 @@
 __pycache__
 engtutor_tasks.csv
 test.py
+.DS_Store
+.vscode
