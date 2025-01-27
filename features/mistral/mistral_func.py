@@ -1,9 +1,22 @@
 from mistralai import Mistral
+import base64
+
+def encode_image(image_path):
+    try:
+        with open(image_path, "rb") as image_file:
+            return base64.b64encode(image_file.read()).decode('utf-8')
+    except FileNotFoundError:
+        print(f"Error: The file {image_path} was not found.")
+        return None
+    except Exception as e:  # 
+        print(f"Error: {e}")
+        return None
 
 
-async def get_info_from_photo(photo_url: str):
+async def get_info_from_photo(photo_path: str):
     model = 'pixtral-12b-2409'
     api = 'wGkkpBYNqfIEermA9FfcodBC7DaX243X'
+    base64_image = encode_image(image_path=photo_path)
     client = Mistral(api_key=api)
     messages = [
         {
@@ -15,7 +28,7 @@ async def get_info_from_photo(photo_url: str):
                 },
                 {
                     "type": "image_url",
-                    "image_url": photo_url
+                    "image_url": f"data:image/jpeg;base64,{base64_image}"
                 }
             ]
         }

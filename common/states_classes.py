@@ -19,21 +19,17 @@ class CheckMail(StatesGroup):
     check_done = State()
 
 
-class SolveTasks(StatesGroup):
-    prev_id = State()
-    solve_audio = State()
-    solve_reading = State()
-    sovle_grammar = State()
-    solve_mails = State()
-
-    # немного другая и более страшная хуйня
-    solve_main_content = State()
-    solve_TFNS_search = State()
-    solve_full_understanding = State()
-    solve_match = State()
-    solve_insert = State()
-    solve_choice_right = State()
-    solve_grammar = State()
-    solve_vocabulary = State()
-    solve_mail = State()
-    solve_essay = State()
+class CheckEssay(StatesGroup):
+    check_type = State()
+    confirmed = State()
+    send_photo = State()
+    info_from_photo = State()
+    photo_path = State()
+    send_essay = State()
+    check_done = State()
+    
+class SolveTasksCategory(StatesGroup):
+    audio = State()
+    reading = State()
+    grammar = State()
+    mails = State()

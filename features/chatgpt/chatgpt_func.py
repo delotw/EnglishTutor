@@ -2,7 +2,6 @@ import httpx
 from loguru import logger
 from openai import AsyncOpenAI, APITimeoutError
 from dotenv import load_dotenv
-from features.mistral.mistral_func import get_info_from_photo
 import os
 
 from settings import CONTEXT_37, CONTEXT_38
@@ -41,6 +40,10 @@ async def get_score_37(mail_text: str):
                     "content": context
                 },
                 {
+                    "role": "user",
+                    "content": "Так, твой ответ должен содержать выдержанную оценку письма/эссе пользователя, основанную на критериях которые я тебе отправил. Выдели каждый критерий, балл за него и где есть недочеты, но как их исправлять не уточняй. В конце приведи сумму баллов за каждый критерий и итоговый балл. Не лей воду в комментарии к каждому ответу, твой комментарий должен быть кратким, но емким и с указанием на ошибки. Не делай это в виде таблички, а просто текстов опиши каждый критерий по пунктам."
+                },
+                {
                     "role": "assistant",
                     "content": "Хорошо, я готов оценивать письма, согласно критериям, которые ты мне отправил. Я жду письмо. Я не буду использовать Markdown разметку в своих ответах."
                 },
@@ -58,11 +61,10 @@ async def get_score_37(mail_text: str):
 
 
 # Функция получения ответа от GPT для 38 задания
-async def get_score_38(mail_text: str, photo_url: str):
-    desc = await get_info_from_photo(photo_url=photo_url)
-    context = context = get_context(CONTEXT_38)
-
+async def get_score_38(mail_text: str, info_from_photo: str):
+    context = get_context(CONTEXT_38)
     logger.info('Отправлен запрос к ChatGPT')
+    
     try:
         response = await client.chat.completions.create(
             model='o1-mini',
@@ -72,12 +74,16 @@ async def get_score_38(mail_text: str, photo_url: str):
                     "content": context
                 },
                 {
+                    "role": "user",
+                    "content": "Так, твой ответ должен содержать выдержанную оценку письма/эссе пользователя, основанную на критериях которые я тебе отправил. Выдели каждый критерий, балл за него и где есть недочеты, но как их исправлять не уточняй. В конце приведи сумму баллов за каждый критерий и итоговый балл. Не лей воду в комментарии к каждому ответу, твой комментарий должен быть кратким, но емким и с указанием на ошибки. Не делай это в виде таблички, а просто текстов опиши каждый критерий по пунктам."
+                },
+                {
                     "role": "assistant",
                     "content": "Хорошо, я готов оценивать письмо согласно тем критериям, что ты мне отправил. Жду текстовужю инфографику, на основе которой пользователь будет писать свое эссе."
                 },
                 {
                     "role": "user",
-                    "content": desc
+                    "content": info_from_photo
                 },
                 {
                     "role": "assistant",

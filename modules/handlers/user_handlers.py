@@ -1,32 +1,22 @@
-from common.states_classes import Reg, CheckMail, SolveTasks
-from features.chatgpt.chatgpt_func import get_score_37
-# from features.mistral.mistral_func import get_info_from_photo
-from features.mistral.test import get_info_from_photo
+import asyncio
+import os
+from common.states_classes import Reg, CheckMail, CheckEssay, SolveTasksCategory
+from features.chatgpt.chatgpt_func import get_score_37, get_score_38
+from features.mistral.mistral_func import get_info_from_photo
 from features.database.db_functions import *
 from modules.keyboards.get_funcs.inline import *
 from modules.keyboards.get_funcs.reply import *
+from modules.bot.main import bot
 from aiogram import F, Router
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 from aiogram.fsm.context import FSMContext
 from aiogram.enums import ParseMode
 from loguru import logger
 
-# todo: Переделать механизм вызова заданий на тот, как я сделал у Дани
 
 # Переменные
-router = Router()
 user_router = Router()
 mark_down = ParseMode.MARKDOWN
-
-
-@user_router.message(F.photo)
-async def test(message: Message):
-    # text = await get_info_from_photo(photo_url='https://media.cleanshot.cloud/media/108298/aR4qa8AHGWIrqlWHKQC4wIgsoJvsJxUIAaS3rMCo.jpeg?Expires=1737986752&Signature=YX~PUlXL5~FpT786oWPAT2QWDnPWjfPj3rzu1-dcRetTECpQQkPN0A563K16IKXCCYp1YOHLMu~i9fKNNCg189rKSZtS3rwsBuUcFDktbcXYNkonTuGTqe9KeFDac4IKmlfvV1CxAZRNRSFoe8VlTuRB5zhqu0AL5a1cGkBJyHW2n9zXYQPMkQycw-MdPH2y5ojagdAVFmrnA~q8FM1i74x02syxsJQEP8-P9YpFXSAufDTqquqzpcFuwHvnxrINK03BVsLsm6FQwKUTAtfzwMuCfEsfrhkH80RFYTtz91RJXCPCoc~foRwSD9bAxDHBm8gevOXyklOj9g3kg2RyoQ__&Key-Pair-Id=K269JMAT9ZF4GZ')
-    text = 'Пока ничего не тестим'
-    await message.answer(text=text)
-    # await bot.download(message.document)
-
-
 
 
 @user_router.message(F.text == '/start')
@@ -35,7 +25,8 @@ async def send_welcome(message: Message):
         text = (f"<b>Привет, {await get_user_name(uid=message.from_user.id)} 👋</b> \nВыбери интересующий тебя раздел ниже:")
         kbd = await get_inline(
             btns={
-                "Подготовка 🎯": "preparation",
+                "Типовые задания 📋": "choose_tamplate_tasks",
+                "Проверить письмо 📝": "choose_essay",
                 "Профиль ℹ️": "profile",
                 "Поддержка ☎️": "support",
             },
@@ -47,44 +38,93 @@ async def send_welcome(message: Message):
         await message.answer(text=text)
 
 
+# Регистрация пользователя в боте
 @user_router.message(F.text == '/reg')
 async def reg_first(message: Message, state: FSMContext):
-    text = ('1️⃣: Как тебя зовут?')
+    # Удаляем сообщение пользователя
+    await message.delete()
+
+    # Отправляем сообщение бота
+    text = '1️⃣: Как тебя зовут?'
+    bot_message = await message.answer(text=text)
+
+    # Сохраняем ID сообщения бота
+    await state.update_data(bot_message_id=bot_message.message_id)
+
+    # Устанавливаем состояние
     await state.set_state(Reg.name)
-    await message.answer(text=text)
 
 
 @user_router.message(Reg.name)
 async def reg_second(message: Message, state: FSMContext):
-    logger.info(f"Получен message | UID: {message.from_user.id} | Введено имя ")
+    # Удаляем сообщение пользователя
+    await message.delete()
+
+    # Удаляем предыдущее сообщение бота
+    data = await state.get_data()
+    bot_message_id = data.get("bot_message_id")
+    if bot_message_id:
+        await message.bot.delete_message(chat_id=message.chat.id, message_id=bot_message_id)
+
+    # Сохраняем имя пользователя
     await state.update_data(name=message.text)
-    await state.set_state(Reg.grade)
-    text = (f'2️⃣: {message.text}, в каком классе ты учишься?')
+
+    # Отправляем новое сообщение
+    text = f'2️⃣: {message.text}, в каком классе ты учишься?'
     kbd = await get_reply(
         'Прогуливаюсь мимо 🚶',
         '10',
         '11',
-        sizes=(3,))
-    await message.answer(text=text, reply_markup=kbd)
+        sizes=(3,)
+    )
+    bot_message = await message.answer(text=text, reply_markup=kbd)
+
+    # Сохраняем ID нового сообщения
+    await state.update_data(bot_message_id=bot_message.message_id)
+
+    # Устанавливаем следующее состояние
+    await state.set_state(Reg.grade)
 
 
 @user_router.message(Reg.grade)
 async def reg_third(message: Message, state: FSMContext):
-    logger.info(f"Получен message | UID: {message.from_user.id} | Введен класс ")
+    # Удаляем сообщение пользователя
+    await message.delete()
+
+    # Удаляем предыдущее сообщение бота
+    data = await state.get_data()
+    bot_message_id = data.get("bot_message_id")
+    if bot_message_id:
+        await message.bot.delete_message(chat_id=message.chat.id, message_id=bot_message_id)
+
+    # Сохраняем класс
     await state.update_data(grade=message.text)
-    await state.set_state(Reg.sex)
-    text = (f'3️⃣: Как мне к тебе обращаться?')
+
+    # Отправляем новое сообщение
+    text = '3️⃣: Как мне к тебе обращаться?'
     kbd = await get_reply(
         'Господин 🤵‍♂️',
         'Госпожа 🤵‍♀️',
         sizes=(2,)
     )
-    await message.answer(text=text, reply_markup=kbd)
+    bot_message = await message.answer(text=text, reply_markup=kbd)
+
+    # Сохраняем ID нового сообщения
+    await state.update_data(bot_message_id=bot_message.message_id)
+
+    # Устанавливаем следующее состояние
+    await state.set_state(Reg.sex)
 
 
 @user_router.message(Reg.sex)
 async def reg_final(message: Message, state: FSMContext):
-    logger.info(f"Получен message | UID: {message.from_user.id} | Введен пол ")
+    await message.delete()
+
+    data = await state.get_data()
+    bot_message_id = data.get("bot_message_id")
+    if bot_message_id:
+        await message.bot.delete_message(chat_id=message.chat.id, message_id=bot_message_id)
+
     await state.update_data(sex=message.text)
     data = await state.get_data()
     uid = message.from_user.id
@@ -92,25 +132,43 @@ async def reg_final(message: Message, state: FSMContext):
     grade = data["grade"]
     sex = str(data["sex"])
     await create_user(uid=uid, name=name, grade=grade, sex=sex)
-    text = ('🎉 <b>Регистрация успешно окончена, я рад, что мы познакомились поближе.</b> \n В качестве <b>подарка</b> тебе закинул немного баланса, чтобы ты мог протестировать нашу проверку писем нейронкой.\n----------\n➡️ Нажми на кнопку ниже, чтобы перейти в главное меню!')
+
+    text = ('🎉 <b>Регистрация успешно окончена, я рад, что мы познакомились поближе.</b> \n'
+            'В качестве <b>подарка</b> тебе закинул немного баланса, чтобы ты мог протестировать нашу проверку писем нейронкой.\n'
+            '----------')
+    text_1 = "➡️ Нажми на кнопку ниже, чтобы перейти в главное меню!"
     kbd = await get_inline(
         btns={
             'В главное меню ✅': 'main_menu',
         },
-        sizes=(1, )
+        sizes=(1,)
     )
+
+    bot_message_1 = await message.answer(text=text, reply_markup=ReplyKeyboardRemove())
+    await message.answer(text=text_1, reply_markup=kbd)
+    await state.update_data(bot_message_ids=[bot_message_1.message_id])
+    await asyncio.sleep(10)
+    for message_id in [bot_message_1.message_id]:
+        try:
+            await message.bot.delete_message(chat_id=message.chat.id, message_id=message_id)
+        except Exception as e:
+            print(f"Ошибка удаления сообщения: {e}")
+
+    # Очищаем состояние
     await state.clear()
-    await message.answer(text=text, reply_markup=kbd)
+
+
+# * Основные хэндлеры для меню
 
 
 @user_router.callback_query(F.data == "main_menu")
 async def back_to_main_menu(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
     await state.clear()  # сброс состояний пользователя
     text = (f"<b>Привет, {await get_user_name(uid=callback.from_user.id)} 👋</b> \nВыбери интересующий тебя раздел ниже:")
     kbd = await get_inline(
         btns={
-            "Подготовка 🎯": "preparation",
+            "Типовые задания 📋": "choose_tamplate_tasks",
+            "Проверить письмо 📝": "choose_essay",
             "Профиль ℹ️": "profile",
             "Поддержка ☎️": "support",
         },
@@ -120,27 +178,8 @@ async def back_to_main_menu(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-@user_router.callback_query(F.data == "preparation")
-async def menu_preparation(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
-    await state.clear()
-    text = ("Отлично, что же тебя интересует? 🔖")
-    kbd = await get_inline(
-        btns={
-            "Готовые варианты 📚": "choose_exam_variants",
-            "Типовые задания 📋": "choose_tamplate_tasks",
-            "Проверить письмо 📝": "choose_essay",
-            "⬅️ Главное меню": "main_menu"
-        },
-        sizes=(1, 1, 1, 1,)
-    )
-    await callback.message.edit_text(text=text, reply_markup=kbd)
-    await callback.answer()
-
-
 @user_router.callback_query(F.data == "profile")
 async def menu_user_profile(callback: CallbackQuery):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
     uid = callback.from_user.id
     user = await get_user(uid=uid)
     temp = get_percentage(right=user["right_solved"], solved=user["solved"])
@@ -165,7 +204,6 @@ async def menu_user_profile(callback: CallbackQuery):
 
 @user_router.callback_query(F.data == "support")
 async def menu_support(callback: CallbackQuery):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
     text = (f"При возникновении проблем обращаться к @delotbtw")
     kbd = await get_inline(
         btns={
@@ -177,34 +215,16 @@ async def menu_support(callback: CallbackQuery):
     await callback.answer()
 
 
-@user_router.callback_query(F.data == "choose_exam_variants")
-async def menu_exam_variants(callback: CallbackQuery):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
-
-    text = ("🎲 Так, ну выбор за тобой!")
-    kbd = await get_inline(
-        btns={
-            "Вариант 1": "variant",
-            "Вариант 2": "variant",
-            "⬅️ Назад": "preparation",
-        },
-        sizes=(1, 1, 1,)
-    )
-    await callback.message.edit_text(text=text, reply_markup=kbd)
-    await callback.answer()
-
-
 @user_router.callback_query(F.data == "choose_tamplate_tasks")
 async def menu_template_tasks(callback: CallbackQuery):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
     text = ("⬇️ Часть экзамена")
     kbd = await get_inline(
         btns={
-            "Аудирование 🎧": "part_audirovanie",
+            "Аудирование 🎧": "part_audio",
             "Чтение 📖": "part_reading",
             "Лексика и грамматика 📚": "part_grammar",
             "Письмо ✍️": "part_mail",
-            "⬅️ Назад": "preparation",
+            "⬅️ Назад": "main_menu",
         },
         sizes=(2, 2, 1,)
     )
@@ -214,14 +234,13 @@ async def menu_template_tasks(callback: CallbackQuery):
 
 @user_router.callback_query(F.data == "choose_essay")
 async def menu_check_mail(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
     await state.clear()  # отчистка состояния при отмене проверки письма
     text = ("Ух ты, уже есть написанный текст? Круто! \nКакой тип проверки выберешь?")
     kbd = await get_inline(
         btns={
             "Проверка нейросетью 🤖": "check_by_ai",
             "Проверка экспертом 👨‍🏫": "check_by_expert",
-            "⬅️ Назад": "preparation",
+            "⬅️ Назад": "main_menu",
         },
         sizes=(1, 1, 1,)
     )
@@ -231,7 +250,6 @@ async def menu_check_mail(callback: CallbackQuery, state: FSMContext):
 
 @user_router.callback_query(F.data == "check_by_ai")
 async def check_by_ai(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
     await state.set_state(CheckMail.check_type)
     await state.update_data(check_type='ai')
     text = ("⬇️ Выбери задание, которое хочешь проверить ")
@@ -247,27 +265,86 @@ async def check_by_ai(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-# todo:  Сделать наконец эту проверку эссе
+# * Проверка эссе из задания 38
 @user_router.callback_query(F.data == 'choice_38_ai')
-async def confirm_check_38_ai(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
-    await state.set_state(CheckMail.task_type)
-    await state.update_data(task_type='essay')
-    text = ('Скоро, пока недоступно 🕓')
+async def choice_38_ai(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(CheckEssay.check_type)
+    await state.update_data(task_type='ai')
+    text = ('Подтверждай покупку ниже и мы начианем 💥')
     kbd = await get_inline(
         btns={
-            'Назад': 'check_by_ai',
+            'Подтверждаю ✅': 'confirm_ai_38',
+            'Отмена ❌': 'choose_essay',
         },
-        sizes=(1,)
     )
     await callback.message.edit_text(text=text, reply_markup=kbd)
     await callback.answer()
 
 
+@user_router.callback_query(F.data == 'confirm_ai_38')
+async def confirm_check_38_ai(callback: CallbackQuery, state: FSMContext):
+    user = await get_user(uid=callback.from_user.id)
+    if int(user["balance"]) >= 49:
+        await state.set_state(CheckEssay.confirmed)
+        await state.update_data(confirmed='confirmed')
+        await state.set_state(CheckEssay.send_photo)
+        await debit_money(uid=callback.from_user.id, amount=49)
+        text = ('Деньги списаны с баланса! Отправь мне фотографию с заданием 38.1 или 38.2 и инфографикой. Пример - https://share.cleanshot.com/X1J421Nf')
+        await callback.message.edit_text(text=text)
+        await callback.answer()
+    else:
+        text = (f'❗ <b>Недостаточно средств</b> на балансе: {user["balance"]}\n'
+                'Переходи в главное меню, чтобы пополнить баланс в Профиле')
+        kbd = await get_inline(
+            btns={
+                '⬅️ В главное меню': 'main_menu',
+            },
+            sizes=(1, )
+        )
+        await callback.message.edit_text(text=text, reply_markup=kbd)
+
+
+@user_router.message(F.photo, CheckEssay.send_photo)
+async def get_photo_info(message: Message, state: FSMContext):
+    await state.set_state(CheckEssay.info_from_photo)
+    photo = message.photo[-1]  # type: ignore
+    file_info = await bot.get_file(photo.file_id)
+    file_path = os.path.join("photos", f"{photo.file_id}.jpg")
+    await bot.download_file(file_info.file_path, destination=file_path)
+    photo_path = f'./{file_path}'
+    info_from_photo = await get_info_from_photo(photo_path=photo_path)
+    await state.update_data(info_from_photo=info_from_photo)
+    await state.set_state(CheckEssay.photo_path)
+    await state.update_data(photo_path=photo_path)
+    text = ('Я получил и распознал твои фото, теперь отправляй мне эссе!')
+    await state.set_state(CheckEssay.send_essay)
+    await message.answer(text=text)
+
+
+@user_router.message(F.text, CheckEssay.send_essay)
+async def check_essay(message: Message, state: FSMContext):
+    mail_text = message.text
+    data = await state.get_data()
+    info_from_photo = data["info_from_photo"]
+
+    chatgpt_answer = await get_score_38(mail_text=mail_text, info_from_photo=info_from_photo)
+    clear_asnwer = chatgpt_answer.replace('**', '')
+
+    text = (f'<b>Оценка твоего эссе:</b> ⤵️ \n---------- \n<blockquote>{clear_asnwer}</blockquote> \n')
+    text_1 = 'Вернуться в главное меню?'
+    kbd = await get_inline(
+        btns={
+            '⬅️ В главное меню': 'main_menu',
+        },
+        sizes=(1, )
+    )
+    await message.answer(text=text)
+    await message.answer(text=text_1, reply_markup=kbd)
+
+
 # * Все обработчики, связанные с проверкой 37 задания через CHATGPT
 @user_router.callback_query(F.data == 'choice_37_ai')
 async def confirm_check_37_ai(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
     await state.set_state(CheckMail.task_type)
     await state.update_data(task_type='mail')
     text = ('Подтверждай покупки ниже и мы начианем 💥')
@@ -283,35 +360,31 @@ async def confirm_check_37_ai(callback: CallbackQuery, state: FSMContext):
 
 @user_router.callback_query(F.data == 'confirm_ai_37')
 async def check_37(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
     user = await get_user(uid=callback.from_user.id)
-    kbd = await get_inline(
-        btns={
-            '⬅️ В главное меню': 'main_menu',
-        },
-        sizes=(1, )
-    )
-    if int(user["balance"]) >= 149:
+
+    if int(user["balance"]) >= 49:
         await state.set_state(CheckMail.confirmed)
         await state.update_data(confirmed='1')
-        await debit_money(uid=callback.from_user.id, amount=149)
+        await debit_money(uid=callback.from_user.id, amount=49)
         text = ('Окей, деньги с баланса списаны. \nОтправляй мне письмо.')
         await callback.message.answer(text=text)
     else:
         text = (f'❗ <b>Недостаточно средств</b> на балансе: {user["balance"]}\n'
                 'Переходи в главное меню, чтобы пополнить баланс в Профиле')
-
+        kbd = await get_inline(
+            btns={
+                '⬅️ В главное меню': 'main_menu',
+            },
+            sizes=(1, )
+        )
         await callback.message.edit_text(text=text, reply_markup=kbd)
     await callback.answer()
 
 
 @user_router.message(CheckMail.confirmed, F.text)
 async def get_ai_score_37(message: Message, state: FSMContext):
-    logger.info(f"Получен message | UID: {message.from_user.id} | Письмо на оценку ")
-
     chatgpt_answer = await get_score_37(mail_text=message.text)
     clear_asnwer = chatgpt_answer.replace('**', '')
-
     text = (f'<b>Оценка твоего письма:</b> ⤵️ \n---------- \n<blockquote>{clear_asnwer}</blockquote> \n')
     text_1 = 'Вернуться в главное меню?'
     kbd = await get_inline(
@@ -334,17 +407,16 @@ async def get_ai_score_37(message: Message, state: FSMContext):
     await message.answer(text=text_1, reply_markup=kbd)
 
 
-# * Обработчики всего, что связано с типовыми заданиями по аудированию
-@user_router.callback_query(F.data == 'part_audirovanie')
+# * Типовое задание: аудирование
+@user_router.callback_query(F.data == 'part_audio')
 async def choice_audio_div(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
     text = 'Хорошо, выбери конкретное задание:'
-    await state.set_state(SolveTasks.solve_audio)
+    await state.set_state(SolveTasksCategory.audio)
     kbd = await get_inline(
         btns={
-            'Понимание основного содержания (1)': 'audio_main_content',
-            'True, false, not stated (2)': 'audio_TFNS_search',
-            'Полное понимание речи (3-9)': 'audio_full_understanding',
+            'Понимание основного содержания (1)': 'audio@main_content',
+            'True, false, not stated (2)': 'audio@TFNS_search',
+            'Полное понимание речи (3-9)': 'audio@full_understanding',
             'Назад': 'choose_tamplate_tasks',
         },
         sizes=(1, 1, 1, 1,)
@@ -353,13 +425,12 @@ async def choice_audio_div(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-@user_router.callback_query(F.data == 'new', SolveTasks.solve_main_content)
-@user_router.callback_query(F.data == 'audio_main_content')
-async def audio_main_content(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
+@user_router.callback_query(F.data.startswith('new@'), SolveTasksCategory.audio)
+@user_router.callback_query(F.data.startswith('audio@'), SolveTasksCategory.audio)
+async def send_audio_task(callback: CallbackQuery):
     await callback.message.delete()
-    await state.set_state(SolveTasks.solve_main_content)
-    task = await get_random_task(type='main_content')
+    category = str(callback.data.split('@')[-1])
+    task = await get_random_task(type=category)
     text = (
         f'<b>Задание {task["id"]}</b> \n'
         '---------- \n'
@@ -371,8 +442,8 @@ async def audio_main_content(callback: CallbackQuery, state: FSMContext):
         btns={
             '✅': 'right',
             '❌': 'wrong',
-            'Новое задание 🆕': 'new',
-            'Назад': 'part_audirovanie',
+            'Новое задание 🆕': f'new@{category}',
+            'Назад': 'part_audio',
         },
         sizes=(2, 1, 1,)
     )
@@ -380,86 +451,31 @@ async def audio_main_content(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-@user_router.callback_query(F.data == 'new', SolveTasks.solve_TFNS_search)
-@user_router.callback_query(F.data == 'audio_TFNS_search')
-async def audio_TFNS_search(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
-    await callback.message.delete()
-    await state.set_state(SolveTasks.solve_TFNS_search)
-    task = await get_random_task(type='TFNS_search')
-    text = (
-        f'<b>Задание {task["id"]}</b> \n'
-        '---------- \n'
-        f'<blockquote>{task["descr"]}</blockquote>\n'
-        f'<b>Ссылка на аудио:</b> {task["descr_url"]} \n'
-        f'<b>Ответ:</b> <tg-spoiler>{task["ans"]}</tg-spoiler>'
-    )
-    kbd = await get_inline(
-        btns={
-            '✅': 'right',
-            '❌': 'wrong',
-            'Новое задание 🆕': 'new',
-            'Назад': 'part_audirovanie',
-        },
-        sizes=(2, 1, 1,)
-    )
-    await callback.message.answer(text=text, reply_markup=kbd)
-    await callback.answer()
-
-
-@user_router.callback_query(F.data == 'new', SolveTasks.solve_full_understanding)
-@user_router.callback_query(F.data == 'audio_full_understanding')
-async def audio_full_understanding(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
-    await callback.message.delete()
-    await state.set_state(SolveTasks.solve_full_understanding)
-    task = await get_random_task(type='full_understanding')
-    text = (
-        f'<b>Задание {task["id"]}</b> \n'
-        '---------- \n'
-        f'<blockquote>{task["descr"]}</blockquote>\n'
-        f'<b>Ссылка на аудио:</b> {task["descr_url"]} \n'
-        f'<b>Ответ:</b> <tg-spoiler>{task["ans"]}</tg-spoiler>'
-    )
-    kbd = await get_inline(
-        btns={
-            '✅': 'right',
-            '❌': 'wrong',
-            'Новое задание 🆕': 'new',
-            'Назад': 'part_audirovanie',
-        },
-        sizes=(2, 1, 1,)
-    )
-    await callback.message.answer(text=text, reply_markup=kbd)
-    await callback.answer()
-
-
-# * Обработчики всего, что связано с типовыми заданиями по чтению
+# * Типовое задание: чтение
 @user_router.callback_query(F.data == 'part_reading')
 async def choice_reading_div(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
     text = 'Хорошо, выбери конкретное задание:'
     kbd = await get_inline(
         btns={
-            'Соответствие заголовок-текст (10)': 'reading_match',
-            'Вставка конструкций в текст (11)': 'reading_insert',
-            'Текст и 1 правильный ответ из 4 (12-18)': 'reading_choice_right',
+            'Соответствие заголовок-текст (10)': 'reading@match',
+            'Вставка конструкций в текст (11)': 'reading@insert',
+            'Текст и 1 правильный ответ из 4 (12-18)': 'reading@choice_right',
             'Назад': 'choose_tamplate_tasks',
         },
         sizes=(1, 1, 1, 1,)
     )
-    await state.set_state(SolveTasks.solve_reading)
+    await state.set_state(SolveTasksCategory.reading)
     await callback.message.edit_text(text=text, reply_markup=kbd)
     await callback.answer()
 
 
-@user_router.callback_query(F.data == 'new', SolveTasks.solve_match)
-@user_router.callback_query(F.data == 'reading_match')
-async def reading_match(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
+@user_router.callback_query(F.data.startswith('new@'), SolveTasksCategory.reading)
+@user_router.callback_query(F.data.startswith('reading@'), SolveTasksCategory.reading)
+async def send_reading_task(callback: CallbackQuery):
     await callback.message.delete()
-    await state.set_state(SolveTasks.solve_match)
-    task = await get_random_task(type='match')
+    category = str(callback.data.split('@')[-1])
+    print(category)
+    task = await get_random_task(type=category)
     text = (
         f'<b>Задание {task["id"]}</b> \n'
         '---------- \n'
@@ -470,7 +486,7 @@ async def reading_match(callback: CallbackQuery, state: FSMContext):
         btns={
             '✅': 'right',
             '❌': 'wrong',
-            'Новое задание 🆕': 'new',
+            'Новое задание 🆕': f'new@{category}',
             'Назад': 'part_reading',
         },
         sizes=(2, 1, 1,)
@@ -479,83 +495,29 @@ async def reading_match(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-@user_router.callback_query(F.data == 'new', SolveTasks.solve_insert)
-@user_router.callback_query(F.data == 'reading_insert')
-async def reading_insert(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
-    await callback.message.delete()
-    await state.set_state(SolveTasks.solve_insert)
-    task = await get_random_task(type='insert')
-    text = (
-        f'<b>Задание {task["id"]}</b> \n'
-        '---------- \n'
-        f'<blockquote>{task["descr"]}</blockquote>\n'
-        f'<b>Ответ:</b> <tg-spoiler>{task["ans"]}</tg-spoiler>'
-    )
-    kbd = await get_inline(
-        btns={
-            '✅': 'right',
-            '❌': 'wrong',
-            'Новое задание 🆕': 'new',
-            'Назад': 'part_reading',
-        },
-        sizes=(2, 1, 1,)
-    )
-    await callback.message.answer(text=text, reply_markup=kbd)
-    await callback.answer()
-
-
-@user_router.callback_query(F.data == 'new', SolveTasks.solve_choice_right)
-@user_router.callback_query(F.data == 'reading_choice_right')
-async def reading_choice_right(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
-    await callback.message.delete()
-    await state.set_state(SolveTasks.solve_choice_right)
-    task = await get_random_task(type='choice_right')
-    text = (
-        f'<b>Задание {task["id"]}</b> \n'
-        '---------- \n'
-        f'<blockquote>{task["descr"]}</blockquote>\n'
-        f'<b>Ответ:</b> <tg-spoiler>{task["ans"]}</tg-spoiler>'
-    )
-    kbd = await get_inline(
-        btns={
-            '✅': 'right',
-            '❌': 'wrong',
-            'Новое задание 🆕': 'new',
-            'Назад': 'part_reading',
-        },
-        sizes=(2, 1, 1,)
-    )
-    await callback.message.answer(text=text, reply_markup=kbd)
-    await callback.answer()
-
-
-# * Обработчики всего, что связано с типовыми заданиями по грамматике
+# * Типовое задание: лексика и грамматика
 @user_router.callback_query(F.data == 'part_grammar')
 async def choice_grammar_div(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
     text = 'Хорошо, выбери конкретное задание:'
     kbd = await get_inline(
         btns={
-            'Грамматика слов (19-24)': 'grammar_grammar',
-            'Грамматика и лексика слов (25-36)': 'grammar_vocabulary',
+            'Грамматика слов (19-24)': 'grammar@grammar',
+            'Грамматика и лексика слов (25-36)': 'grammar@vocabulary',
             'Назад': 'choose_tamplate_tasks',
         },
         sizes=(1, 1, 1,)
     )
-    await state.set_state(SolveTasks.solve_grammar)
+    await state.set_state(SolveTasksCategory.grammar)
     await callback.message.edit_text(text=text, reply_markup=kbd)
     await callback.answer()
 
 
-@user_router.callback_query(F.data == 'new', SolveTasks.solve_grammar)
-@user_router.callback_query(F.data == 'grammar_grammar')
-async def grammar_grammar(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
+@user_router.callback_query(F.data.startswith('new@'), SolveTasksCategory.grammar)
+@user_router.callback_query(F.data.startswith('grammar@'), SolveTasksCategory.grammar)
+async def send_grammar_task(callback: CallbackQuery):
     await callback.message.delete()
-    await state.set_state(SolveTasks.solve_grammar)
-    task = await get_random_task(type='grammar')
+    category = str(callback.data.split('@')[-1])
+    task = await get_random_task(type=category)
     text = (
         f'<b>Задание {task["id"]}</b> \n'
         '---------- \n'
@@ -566,7 +528,7 @@ async def grammar_grammar(callback: CallbackQuery, state: FSMContext):
         btns={
             '✅': 'right',
             '❌': 'wrong',
-            'Новое задание 🆕': 'new',
+            'Новое задание 🆕': f'new@{category}',
             'Назад': 'part_grammar',
         },
         sizes=(2, 1, 1,)
@@ -575,57 +537,29 @@ async def grammar_grammar(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-@user_router.callback_query(F.data == 'new', SolveTasks.solve_vocabulary)
-@user_router.callback_query(F.data == 'grammar_vocabulary')
-async def grammar_vocabulary(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
-    await callback.message.delete()
-    await state.set_state(SolveTasks.solve_vocabulary)
-    task = await get_random_task(type='vocabulary')
-    text = (
-        f'<b>Задание {task["id"]}</b> \n'
-        '---------- \n'
-        f'<blockquote>{task["descr"]}</blockquote>\n'
-        f'<b>Ответ:</b> <tg-spoiler>{task["ans"]}</tg-spoiler>'
-    )
-    kbd = await get_inline(
-        btns={
-            '✅': 'right',
-            '❌': 'wrong',
-            'Новое задание 🆕': 'new',
-            'Назад': 'part_grammar',
-        },
-        sizes=(2, 1, 1,)
-    )
-    await callback.message.answer(text=text, reply_markup=kbd)
-    await callback.answer()
-
-
-# * Обработчики всего, что связано с типовыми заданиями по написанию письма
+# * Типовое задание: письмо/эссе
 @user_router.callback_query(F.data == 'part_mail')
 async def choice_mail_div(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
     text = 'Хорошо, выбери конкретное задание:'
     kbd = await get_inline(
         btns={
-            'Письмо (37)': 'mail_mail',
-            'Эссе (38)': 'mail_essay',
+            'Письмо (37)': 'mail@mail',
+            'Эссе (38)': 'mail@essay',
             'Назад': 'choose_tamplate_tasks',
         },
         sizes=(1, 1, 1,)
     )
-    await state.set_state(SolveTasks.solve_mails)
+    await state.set_state(SolveTasksCategory.mails)
     await callback.message.edit_text(text=text, reply_markup=kbd)
     await callback.answer()
 
 
-@user_router.callback_query(F.data == 'new', SolveTasks.solve_mail)
-@user_router.callback_query(F.data == 'mail_mail')
-async def mail_mail(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
+@user_router.callback_query(F.data.startswith('new@'), SolveTasksCategory.mails)
+@user_router.callback_query(F.data.startswith('mail@'), SolveTasksCategory.mails)
+async def send_mails_task(callback: CallbackQuery):
     await callback.message.delete()
-    await state.set_state(SolveTasks.solve_mail)
-    task = await get_random_task(type='mail')
+    category = str(callback.data.split('@')[-1])
+    task = await get_random_task(type=category)
     text = (
         f'<b>Задание {task["id"]}</b> \n'
         '---------- \n'
@@ -633,49 +567,25 @@ async def mail_mail(callback: CallbackQuery, state: FSMContext):
     )
     kbd = await get_inline(
         btns={
-            'Новое задание 🆕': 'new',
+            'Новое задание 🆕': f'new@{category}',
             'Назад': 'part_mail',
         },
         sizes=(1, 1,)
     )
-    await callback.message.answer(text=text, reply_markup=kbd, disable_web_page_preview=True)
+    await callback.message.answer(text=text, reply_markup=kbd)
     await callback.answer()
 
 
-@user_router.callback_query(F.data == 'new', SolveTasks.solve_essay)
-@user_router.callback_query(F.data == 'mail_essay')
-async def mail_essay(callback: CallbackQuery, state: FSMContext):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
-    await callback.message.delete()
-    await state.set_state(SolveTasks.solve_essay)
-    task = await get_random_task(type='essay')
-    text = (
-        f'<b>Задание {task["id"]}</b> \n'
-        '---------- \n'
-        f'<blockquote>{task["descr"]}</blockquote>\n'
-    )
-    kbd = await get_inline(
-        btns={
-            'Новое задание 🆕': 'new',
-            'Назад': 'part_mail',
-        },
-        sizes=(1, 1,)
-    )
-    await callback.message.answer(text=text, reply_markup=kbd, disable_web_page_preview=True)
-    await callback.answer()
-
-
-# * Обработчики верно/неверно решенных заданий
+# * Верно-неверно решено задание
 @user_router.callback_query(F.data == 'right')
 async def solve_right(callback: CallbackQuery):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
     await write_solve(uid=callback.from_user.id, solved=1, right_solved=1)
     await callback.answer(text='Записано')
 
 
 @user_router.callback_query(F.data == 'wrong')
 async def solve_wrong(callback: CallbackQuery):
-    logger.info(f"Получен callback | UID: {callback.from_user.id} | cb: {callback.data} ")
+    logger.info(f"Получен callback | {callback.from_user.id} | {callback.data} ")
     await write_solve(uid=callback.from_user.id, solved=1, right_solved=0)
     await callback.answer(text='Записано')
 
@@ -683,9 +593,10 @@ async def solve_wrong(callback: CallbackQuery):
 #! Заглушки на кнопки
 @user_router.callback_query(F.data == "check_by_expert")
 async def check_by_expert(callback: CallbackQuery):
-    text = ('Скоро, пока недоступно 🕓')
+    text = ('🕓 Скоро сделаем, пока можно проверить свое письмо с помощью нашей нейросети!')
     kbd = await get_inline(
         btns={
+            "Проверить нейросетью 🤖": "check_by_ai",
             "⬅️ Главное меню": "main_menu",
         },
         sizes=(1,)
@@ -722,45 +633,6 @@ async def done_variants(callback: CallbackQuery):
 
 @user_router.callback_query(F.data == "variant_random")
 async def random_variant(callback: CallbackQuery):
-    text = ('Скоро, пока недоступно 🕓')
-    kbd = await get_inline(
-        btns={
-            "⬅️ Главное меню": "main_menu",
-        },
-        sizes=(1,)
-    )
-    await callback.message.edit_text(text=text, reply_markup=kbd)
-    await callback.answer()
-
-
-@user_router.callback_query(F.data == "part_audirovanie")
-async def part_audio(callback: CallbackQuery):
-    text = ('Скоро, пока недоступно 🕓')
-    kbd = await get_inline(
-        btns={
-            "⬅️ Главное меню": "main_menu",
-        },
-        sizes=(1,)
-    )
-    await callback.message.edit_text(text=text, reply_markup=kbd)
-    await callback.answer()
-
-
-@user_router.callback_query(F.data == "part_grammar")
-async def part_grammar(callback: CallbackQuery):
-    text = ('Скоро, пока недоступно 🕓')
-    kbd = await get_inline(
-        btns={
-            "⬅️ Главное меню": "main_menu",
-        },
-        sizes=(1,)
-    )
-    await callback.message.edit_text(text=text, reply_markup=kbd)
-    await callback.answer()
-
-
-@user_router.callback_query(F.data == "part_mail")
-async def part_mail(callback: CallbackQuery):
     text = ('Скоро, пока недоступно 🕓')
     kbd = await get_inline(
         btns={

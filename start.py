@@ -1,18 +1,15 @@
+import asyncio
+from aiogram import Dispatcher
+from aiogram.types import BotCommandScopeAllPrivateChats
 from modules.handlers.user_handlers import user_router
 from modules.handlers.admin_handlers import admin_router
 from settings import ALLOWED_UPDATES, EXPERTS
 from common.commands_list import private
-import asyncio
 from loguru import logger
-import os
-from aiogram import Bot, Dispatcher
-from aiogram.types import BotCommandScopeAllPrivateChats
-from aiogram.client.default import DefaultBotProperties
+from modules.bot.main import bot
+import logging
 
-from dotenv import load_dotenv
-load_dotenv()
-
-
+logging.basicConfig(level=logging.INFO)
 logger.remove()
 logger.add(
     sink=lambda msg: print(msg, end=""),
@@ -22,7 +19,6 @@ logger.add(
     colorize=True
 )
 
-bot = Bot(token=os.getenv('TOKEN'), default=DefaultBotProperties(parse_mode='HTML'))
 bot.my_admins_list = EXPERTS
 
 dp = Dispatcher()
