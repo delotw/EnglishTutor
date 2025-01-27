@@ -9,6 +9,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.enums import ParseMode
 from loguru import logger
 
+# todo: Переделать механизм вызова заданий на тот, как я сделал у Дани
 
 # Переменные
 router = Router()
