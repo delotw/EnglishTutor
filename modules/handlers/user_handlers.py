@@ -1,5 +1,7 @@
 from common.states_classes import Reg, CheckMail, SolveTasks
 from features.chatgpt.chatgpt_func import get_score_37
+# from features.mistral.mistral_func import get_info_from_photo
+from features.mistral.test import get_info_from_photo
 from features.database.db_functions import *
 from modules.keyboards.get_funcs.inline import *
 from modules.keyboards.get_funcs.reply import *
@@ -15,6 +17,16 @@ from loguru import logger
 router = Router()
 user_router = Router()
 mark_down = ParseMode.MARKDOWN
+
+
+@user_router.message(F.photo)
+async def test(message: Message):
+    # text = await get_info_from_photo(photo_url='https://media.cleanshot.cloud/media/108298/aR4qa8AHGWIrqlWHKQC4wIgsoJvsJxUIAaS3rMCo.jpeg?Expires=1737986752&Signature=YX~PUlXL5~FpT786oWPAT2QWDnPWjfPj3rzu1-dcRetTECpQQkPN0A563K16IKXCCYp1YOHLMu~i9fKNNCg189rKSZtS3rwsBuUcFDktbcXYNkonTuGTqe9KeFDac4IKmlfvV1CxAZRNRSFoe8VlTuRB5zhqu0AL5a1cGkBJyHW2n9zXYQPMkQycw-MdPH2y5ojagdAVFmrnA~q8FM1i74x02syxsJQEP8-P9YpFXSAufDTqquqzpcFuwHvnxrINK03BVsLsm6FQwKUTAtfzwMuCfEsfrhkH80RFYTtz91RJXCPCoc~foRwSD9bAxDHBm8gevOXyklOj9g3kg2RyoQ__&Key-Pair-Id=K269JMAT9ZF4GZ')
+    text = 'Пока ничего не тестим'
+    await message.answer(text=text)
+    # await bot.download(message.document)
+
+
 
 
 @user_router.message(F.text == '/start')

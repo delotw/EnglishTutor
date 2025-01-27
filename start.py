@@ -22,7 +22,7 @@ logger.add(
     colorize=True
 )
 
-bot = Bot(token=os.getenv('MAIN_TOKEN'), default=DefaultBotProperties(parse_mode='HTML'))
+bot = Bot(token=os.getenv('TOKEN'), default=DefaultBotProperties(parse_mode='HTML'))
 bot.my_admins_list = EXPERTS
 
 dp = Dispatcher()
