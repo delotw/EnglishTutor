@@ -38,38 +38,36 @@ async def send_welcome(message: Message):
         await message.answer(text=text)
 
 
+@user_router.message(F.text == '/test')
+async def send_test(message: Message):
+    text = 'Пре­об­ра­зуй­те, если это не­об­хо­ди­мо, слово BE так, чтобы оно грам­ма­ти­че­ски со­от­вет­ство­ва­ло со­дер­жа­нию тек­ста.\nLong ago Teotihuacan was an important religious and economic centre. However, after there _____ a great fire, for some unknown reason all the population decided to leave the city. This happened in 650AD.'
+    await message.answer(text=text)
+
+
 # Регистрация пользователя в боте
 @user_router.message(F.text == '/reg')
 async def reg_first(message: Message, state: FSMContext):
-    # Удаляем сообщение пользователя
     await message.delete()
 
-    # Отправляем сообщение бота
     text = '1️⃣: Как тебя зовут?'
     bot_message = await message.answer(text=text)
 
-    # Сохраняем ID сообщения бота
     await state.update_data(bot_message_id=bot_message.message_id)
 
-    # Устанавливаем состояние
     await state.set_state(Reg.name)
 
 
 @user_router.message(Reg.name)
 async def reg_second(message: Message, state: FSMContext):
-    # Удаляем сообщение пользователя
     await message.delete()
 
-    # Удаляем предыдущее сообщение бота
     data = await state.get_data()
     bot_message_id = data.get("bot_message_id")
     if bot_message_id:
         await message.bot.delete_message(chat_id=message.chat.id, message_id=bot_message_id)
 
-    # Сохраняем имя пользователя
     await state.update_data(name=message.text)
 
-    # Отправляем новое сообщение
     text = f'2️⃣: {message.text}, в каком классе ты учишься?'
     kbd = await get_reply(
         'Прогуливаюсь мимо 🚶',
@@ -79,40 +77,30 @@ async def reg_second(message: Message, state: FSMContext):
     )
     bot_message = await message.answer(text=text, reply_markup=kbd)
 
-    # Сохраняем ID нового сообщения
     await state.update_data(bot_message_id=bot_message.message_id)
-
-    # Устанавливаем следующее состояние
     await state.set_state(Reg.grade)
 
 
 @user_router.message(Reg.grade)
 async def reg_third(message: Message, state: FSMContext):
-    # Удаляем сообщение пользователя
     await message.delete()
 
-    # Удаляем предыдущее сообщение бота
     data = await state.get_data()
     bot_message_id = data.get("bot_message_id")
     if bot_message_id:
         await message.bot.delete_message(chat_id=message.chat.id, message_id=bot_message_id)
 
-    # Сохраняем класс
     await state.update_data(grade=message.text)
 
-    # Отправляем новое сообщение
     text = '3️⃣: Как мне к тебе обращаться?'
     kbd = await get_reply(
         'Господин 🤵‍♂️',
         'Госпожа 🤵‍♀️',
         sizes=(2,)
     )
+
     bot_message = await message.answer(text=text, reply_markup=kbd)
-
-    # Сохраняем ID нового сообщения
     await state.update_data(bot_message_id=bot_message.message_id)
-
-    # Устанавливаем следующее состояние
     await state.set_state(Reg.sex)
 
 
@@ -148,6 +136,7 @@ async def reg_final(message: Message, state: FSMContext):
     await message.answer(text=text_1, reply_markup=kbd)
     await state.update_data(bot_message_ids=[bot_message_1.message_id])
     await asyncio.sleep(10)
+
     for message_id in [bot_message_1.message_id]:
         try:
             await message.bot.delete_message(chat_id=message.chat.id, message_id=message_id)
@@ -159,11 +148,10 @@ async def reg_final(message: Message, state: FSMContext):
 
 
 # * Основные хэндлеры для меню
-
-
 @user_router.callback_query(F.data == "main_menu")
 async def back_to_main_menu(callback: CallbackQuery, state: FSMContext):
     await state.clear()  # сброс состояний пользователя
+
     text = (f"<b>Привет, {await get_user_name(uid=callback.from_user.id)} 👋</b> \nВыбери интересующий тебя раздел ниже:")
     kbd = await get_inline(
         btns={
@@ -174,30 +162,29 @@ async def back_to_main_menu(callback: CallbackQuery, state: FSMContext):
         },
         sizes=(1, 1, 1,)
     )
+
     await callback.message.edit_text(text=text, reply_markup=kbd)
     await callback.answer()
 
 
 @user_router.callback_query(F.data == "profile")
 async def menu_user_profile(callback: CallbackQuery):
-    uid = callback.from_user.id
-    user = await get_user(uid=uid)
+    user = await get_user(uid=callback.from_user.id)
     temp = get_percentage(right=user["right_solved"], solved=user["solved"])
     text = (
         '<b>Твой профиль</b> 😀 \n'
         '----------\n'
         f'<b>Имя</b>: {user["name"]}\n'
-        f'<b>Баланс</b>: {user["balance"]} руб.\n'
         f'<b>Класс</b>: {user["grade"]}\n'
         f'<b>Решено верно</b>: {user["right_solved"]} ({temp}%)\n'
     )
     kbd = await get_inline(
         btns={
-            'Пополнить баланс 💰': 'deposit',
             '⬅️ Назад': 'main_menu',
         },
-        sizes=(1, 1,)
+        sizes=(1,)
     )
+
     await callback.message.edit_text(text=text, reply_markup=kbd)
     await callback.answer()
 
@@ -211,6 +198,7 @@ async def menu_support(callback: CallbackQuery):
         },
         sizes=(1,)
     )
+
     await callback.message.edit_text(text=text, reply_markup=kbd)
     await callback.answer()
 
@@ -228,6 +216,7 @@ async def menu_template_tasks(callback: CallbackQuery):
         },
         sizes=(2, 2, 1,)
     )
+
     await callback.message.edit_text(text=text, reply_markup=kbd)
     await callback.answer()
 
@@ -235,6 +224,7 @@ async def menu_template_tasks(callback: CallbackQuery):
 @user_router.callback_query(F.data == "choose_essay")
 async def menu_check_mail(callback: CallbackQuery, state: FSMContext):
     await state.clear()  # отчистка состояния при отмене проверки письма
+
     text = ("Ух ты, уже есть написанный текст? Круто! \nКакой тип проверки выберешь?")
     kbd = await get_inline(
         btns={
@@ -244,6 +234,7 @@ async def menu_check_mail(callback: CallbackQuery, state: FSMContext):
         },
         sizes=(1, 1, 1,)
     )
+
     await callback.message.edit_text(text=text, reply_markup=kbd)
     await callback.answer()
 
@@ -252,6 +243,7 @@ async def menu_check_mail(callback: CallbackQuery, state: FSMContext):
 async def check_by_ai(callback: CallbackQuery, state: FSMContext):
     await state.set_state(CheckMail.check_type)
     await state.update_data(check_type='ai')
+
     text = ("⬇️ Выбери задание, которое хочешь проверить ")
     kbd = await get_inline(
         btns={
@@ -261,6 +253,7 @@ async def check_by_ai(callback: CallbackQuery, state: FSMContext):
         },
         sizes=(2, 1,)
     )
+
     await callback.message.edit_text(text=text, reply_markup=kbd)
     await callback.answer()
 
@@ -268,55 +261,48 @@ async def check_by_ai(callback: CallbackQuery, state: FSMContext):
 # * Проверка эссе из задания 38
 @user_router.callback_query(F.data == 'choice_38_ai')
 async def choice_38_ai(callback: CallbackQuery, state: FSMContext):
-    await state.set_state(CheckEssay.check_type)
-    await state.update_data(task_type='ai')
-    text = ('Подтверждай покупку ниже и мы начианем 💥')
+    await state.set_state(CheckEssay.task_type)
+    await state.update_data(task_type='essay')
+
+    text = ('Подтверждай проверку эссе, и мы начинаем! 💥')
     kbd = await get_inline(
         btns={
             'Подтверждаю ✅': 'confirm_ai_38',
             'Отмена ❌': 'choose_essay',
         },
     )
+
     await callback.message.edit_text(text=text, reply_markup=kbd)
     await callback.answer()
 
 
 @user_router.callback_query(F.data == 'confirm_ai_38')
 async def confirm_check_38_ai(callback: CallbackQuery, state: FSMContext):
-    user = await get_user(uid=callback.from_user.id)
-    if int(user["balance"]) >= 49:
-        await state.set_state(CheckEssay.confirmed)
-        await state.update_data(confirmed='confirmed')
-        await state.set_state(CheckEssay.send_photo)
-        await debit_money(uid=callback.from_user.id, amount=49)
-        text = ('Деньги списаны с баланса! Отправь мне фотографию с заданием 38.1 или 38.2 и инфографикой. Пример - https://share.cleanshot.com/X1J421Nf')
-        await callback.message.edit_text(text=text)
-        await callback.answer()
-    else:
-        text = (f'❗ <b>Недостаточно средств</b> на балансе: {user["balance"]}\n'
-                'Переходи в главное меню, чтобы пополнить баланс в Профиле')
-        kbd = await get_inline(
-            btns={
-                '⬅️ В главное меню': 'main_menu',
-            },
-            sizes=(1, )
-        )
-        await callback.message.edit_text(text=text, reply_markup=kbd)
+    await state.set_state(CheckEssay.confirmed)
+    await state.update_data(confirmed='confirmed')
+    await state.set_state(CheckEssay.send_photo)
+
+    text = ('Отправь мне фотографию задания 38.1 или 38.2 с инфографикой и планом задания. \nПример - https://share.cleanshot.com/rZ0BmXVl')
+    await callback.message.edit_text(text=text)
+    await callback.answer()
 
 
 @user_router.message(F.photo, CheckEssay.send_photo)
-async def get_photo_info(message: Message, state: FSMContext):
+async def get_photo_info_essay(message: Message, state: FSMContext):
     await state.set_state(CheckEssay.info_from_photo)
+
     photo = message.photo[-1]  # type: ignore
     file_info = await bot.get_file(photo.file_id)
     file_path = os.path.join("photos", f"{photo.file_id}.jpg")
     await bot.download_file(file_info.file_path, destination=file_path)
     photo_path = f'./{file_path}'
     info_from_photo = await get_info_from_photo(photo_path=photo_path)
+
     await state.update_data(info_from_photo=info_from_photo)
     await state.set_state(CheckEssay.photo_path)
     await state.update_data(photo_path=photo_path)
-    text = ('Я получил и распознал твои фото, теперь отправляй мне эссе!')
+
+    text = ('Я получил и распознал твое фото, теперь отправляй мне эссе!')
     await state.set_state(CheckEssay.send_essay)
     await message.answer(text=text)
 
@@ -326,10 +312,8 @@ async def check_essay(message: Message, state: FSMContext):
     mail_text = message.text
     data = await state.get_data()
     info_from_photo = data["info_from_photo"]
-
     chatgpt_answer = await get_score_38(mail_text=mail_text, info_from_photo=info_from_photo)
     clear_asnwer = chatgpt_answer.replace('**', '')
-
     text = (f'<b>Оценка твоего эссе:</b> ⤵️ \n---------- \n<blockquote>{clear_asnwer}</blockquote> \n')
     text_1 = 'Вернуться в главное меню?'
     kbd = await get_inline(
@@ -338,6 +322,15 @@ async def check_essay(message: Message, state: FSMContext):
         },
         sizes=(1, )
     )
+
+    await insert_ai_mail_check(
+        uid=message.from_user.id,
+        type='essay',
+        content=info_from_photo + message.text,
+        score=clear_asnwer,
+        status=1
+    )
+
     await message.answer(text=text)
     await message.answer(text=text_1, reply_markup=kbd)
 
@@ -347,44 +340,59 @@ async def check_essay(message: Message, state: FSMContext):
 async def confirm_check_37_ai(callback: CallbackQuery, state: FSMContext):
     await state.set_state(CheckMail.task_type)
     await state.update_data(task_type='mail')
-    text = ('Подтверждай покупки ниже и мы начианем 💥')
+
+    text = ('Подтверждай проверку письма ниже и мы начианем 💥')
     kbd = await get_inline(
         btns={
             'Подтверждаю ✅': 'confirm_ai_37',
             'Отмена ❌': 'choose_essay',
         },
     )
+
     await callback.message.edit_text(text=text, reply_markup=kbd)
     await callback.answer()
 
 
 @user_router.callback_query(F.data == 'confirm_ai_37')
 async def check_37(callback: CallbackQuery, state: FSMContext):
-    user = await get_user(uid=callback.from_user.id)
+    await state.set_state(CheckMail.confirmed)
+    await state.update_data(confirmed='confirmed')
+    await state.set_state(CheckMail.send_photo)
 
-    if int(user["balance"]) >= 49:
-        await state.set_state(CheckMail.confirmed)
-        await state.update_data(confirmed='1')
-        await debit_money(uid=callback.from_user.id, amount=49)
-        text = ('Окей, деньги с баланса списаны. \nОтправляй мне письмо.')
-        await callback.message.answer(text=text)
-    else:
-        text = (f'❗ <b>Недостаточно средств</b> на балансе: {user["balance"]}\n'
-                'Переходи в главное меню, чтобы пополнить баланс в Профиле')
-        kbd = await get_inline(
-            btns={
-                '⬅️ В главное меню': 'main_menu',
-            },
-            sizes=(1, )
-        )
-        await callback.message.edit_text(text=text, reply_markup=kbd)
+    text = ('Отправь мне фотографию с 37 заданием и планом, указанным в конце задания. Пример - https://share.cleanshot.com/z75fVy7b')
+    await callback.message.answer(text=text)
     await callback.answer()
 
 
-@user_router.message(CheckMail.confirmed, F.text)
+@user_router.message(F.photo, CheckMail.send_photo)
+async def get_photo_info_mail(message: Message, state: FSMContext):
+    await state.set_state(CheckMail.info_from_photo)
+
+    photo = message.photo[-1]  # type: ignore
+    file_info = await bot.get_file(photo.file_id)
+    file_path = os.path.join("photos", f"{photo.file_id}.jpg")
+    await bot.download_file(file_info.file_path, destination=file_path)
+    photo_path = f'./{file_path}'
+    info_from_photo = await get_info_from_photo(photo_path=photo_path)
+
+    await state.update_data(info_from_photo=info_from_photo)
+    await state.set_state(CheckMail.photo_path)
+    await state.update_data(photo_path=photo_path)
+
+    text = ('Я получил и распознал твое фото, теперь отправляй мне письмо!')
+    await state.set_state(CheckMail.send_mail)
+    await message.answer(text=text)
+
+
+@user_router.message(CheckMail.send_mail, F.text)
 async def get_ai_score_37(message: Message, state: FSMContext):
-    chatgpt_answer = await get_score_37(mail_text=message.text)
+    mail_text = message.text
+    data = await state.get_data()
+    info_from_photo = data["info_from_photo"]
+
+    chatgpt_answer = await get_score_37(mail_text=mail_text, info_from_photo=info_from_photo)
     clear_asnwer = chatgpt_answer.replace('**', '')
+
     text = (f'<b>Оценка твоего письма:</b> ⤵️ \n---------- \n<blockquote>{clear_asnwer}</blockquote> \n')
     text_1 = 'Вернуться в главное меню?'
     kbd = await get_inline(
@@ -396,13 +404,22 @@ async def get_ai_score_37(message: Message, state: FSMContext):
 
     await state.set_state(CheckMail.check_done)
     await state.update_data(check_done='1')
+    text_1 = 'Вернуться в главное меню?'
+    kbd = await get_inline(
+        btns={
+            '⬅️ В главное меню': 'main_menu',
+        },
+        sizes=(1, )
+    )
+
     await insert_ai_mail_check(
         uid=message.from_user.id,
         type='mail',
-        content=message.text,
+        content=info_from_photo + message.text,
         score=clear_asnwer,
         status=1
     )
+
     await message.answer(text=text)
     await message.answer(text=text_1, reply_markup=kbd)
 
@@ -410,8 +427,9 @@ async def get_ai_score_37(message: Message, state: FSMContext):
 # * Типовое задание: аудирование
 @user_router.callback_query(F.data == 'part_audio')
 async def choice_audio_div(callback: CallbackQuery, state: FSMContext):
-    text = 'Хорошо, выбери конкретное задание:'
     await state.set_state(SolveTasksCategory.audio)
+
+    text = 'Хорошо, выбери конкретное задание:'
     kbd = await get_inline(
         btns={
             'Понимание основного содержания (1)': 'audio@main_content',
@@ -421,6 +439,7 @@ async def choice_audio_div(callback: CallbackQuery, state: FSMContext):
         },
         sizes=(1, 1, 1, 1,)
     )
+
     await callback.message.edit_text(text=text, reply_markup=kbd)
     await callback.answer()
 
@@ -429,6 +448,7 @@ async def choice_audio_div(callback: CallbackQuery, state: FSMContext):
 @user_router.callback_query(F.data.startswith('audio@'), SolveTasksCategory.audio)
 async def send_audio_task(callback: CallbackQuery):
     await callback.message.delete()
+
     category = str(callback.data.split('@')[-1])
     task = await get_random_task(type=category)
     text = (
@@ -447,6 +467,7 @@ async def send_audio_task(callback: CallbackQuery):
         },
         sizes=(2, 1, 1,)
     )
+
     await callback.message.answer(text=text, reply_markup=kbd)
     await callback.answer()
 
@@ -464,6 +485,7 @@ async def choice_reading_div(callback: CallbackQuery, state: FSMContext):
         },
         sizes=(1, 1, 1, 1,)
     )
+
     await state.set_state(SolveTasksCategory.reading)
     await callback.message.edit_text(text=text, reply_markup=kbd)
     await callback.answer()
@@ -473,8 +495,8 @@ async def choice_reading_div(callback: CallbackQuery, state: FSMContext):
 @user_router.callback_query(F.data.startswith('reading@'), SolveTasksCategory.reading)
 async def send_reading_task(callback: CallbackQuery):
     await callback.message.delete()
+
     category = str(callback.data.split('@')[-1])
-    print(category)
     task = await get_random_task(type=category)
     text = (
         f'<b>Задание {task["id"]}</b> \n'
@@ -491,6 +513,7 @@ async def send_reading_task(callback: CallbackQuery):
         },
         sizes=(2, 1, 1,)
     )
+
     await callback.message.answer(text=text, reply_markup=kbd)
     await callback.answer()
 
@@ -507,6 +530,7 @@ async def choice_grammar_div(callback: CallbackQuery, state: FSMContext):
         },
         sizes=(1, 1, 1,)
     )
+
     await state.set_state(SolveTasksCategory.grammar)
     await callback.message.edit_text(text=text, reply_markup=kbd)
     await callback.answer()
@@ -516,6 +540,7 @@ async def choice_grammar_div(callback: CallbackQuery, state: FSMContext):
 @user_router.callback_query(F.data.startswith('grammar@'), SolveTasksCategory.grammar)
 async def send_grammar_task(callback: CallbackQuery):
     await callback.message.delete()
+
     category = str(callback.data.split('@')[-1])
     task = await get_random_task(type=category)
     text = (
@@ -533,6 +558,7 @@ async def send_grammar_task(callback: CallbackQuery):
         },
         sizes=(2, 1, 1,)
     )
+
     await callback.message.answer(text=text, reply_markup=kbd)
     await callback.answer()
 
@@ -549,6 +575,7 @@ async def choice_mail_div(callback: CallbackQuery, state: FSMContext):
         },
         sizes=(1, 1, 1,)
     )
+
     await state.set_state(SolveTasksCategory.mails)
     await callback.message.edit_text(text=text, reply_markup=kbd)
     await callback.answer()
@@ -558,6 +585,7 @@ async def choice_mail_div(callback: CallbackQuery, state: FSMContext):
 @user_router.callback_query(F.data.startswith('mail@'), SolveTasksCategory.mails)
 async def send_mails_task(callback: CallbackQuery):
     await callback.message.delete()
+
     category = str(callback.data.split('@')[-1])
     task = await get_random_task(type=category)
     text = (
@@ -572,6 +600,7 @@ async def send_mails_task(callback: CallbackQuery):
         },
         sizes=(1, 1,)
     )
+
     await callback.message.answer(text=text, reply_markup=kbd)
     await callback.answer()
 

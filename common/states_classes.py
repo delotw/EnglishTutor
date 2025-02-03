@@ -16,11 +16,16 @@ class CheckMail(StatesGroup):
     check_type = State()
     task_type = State()
     confirmed = State()
+    send_photo = State()
+    info_from_photo = State()
+    photo_path = State()
+    send_mail = State()
     check_done = State()
 
 
 class CheckEssay(StatesGroup):
     check_type = State()
+    task_type = State()
     confirmed = State()
     send_photo = State()
     info_from_photo = State()

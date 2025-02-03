@@ -4,3 +4,4 @@ openai==1.59.3
 python-dotenv==1.0.1
 aiosqlite==0.20.0
 loguru==0.7.3
+mistralai==1.4.0

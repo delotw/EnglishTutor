@@ -27,7 +27,7 @@ def get_context(path: str):
 
 
 # Функция получения ответа от GPT для 37 задания
-async def get_score_37(mail_text: str):
+async def get_score_37(mail_text: str, info_from_photo: str):
     logger.info('Отправлен запрос к ChatGPT')
     context = get_context(CONTEXT_37)
 
@@ -49,6 +49,14 @@ async def get_score_37(mail_text: str):
                 },
                 {
                     "role": "user",
+                    "content": info_from_photo
+                },
+                {
+                    "role": "assistant",
+                    "content": "Отлично, я получил данные на основе которых пользователь пишет свое списьмо. Теперь жду само письмо пользователя."
+                },
+                {
+                    "role": "user",
                     "content": mail_text
                 }
             ]
@@ -56,7 +64,7 @@ async def get_score_37(mail_text: str):
         logger.success('Получен ответ от ChatGPT')
     except APITimeoutError as e:
         logger.error(f'Ответ от ChatGPT не получен: {e}')
-    
+
     return response.choices[0].message.content
 
 
@@ -64,7 +72,7 @@ async def get_score_37(mail_text: str):
 async def get_score_38(mail_text: str, info_from_photo: str):
     context = get_context(CONTEXT_38)
     logger.info('Отправлен запрос к ChatGPT')
-    
+
     try:
         response = await client.chat.completions.create(
             model='o1-mini',
